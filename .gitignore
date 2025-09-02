@@ -1,0 +1,11 @@
+# .gitignore
+.env
+__pycache__/
+logs/
+*.pyc
+*.log
+env/
+
+# VS Code
+.vscode/
+*.code-workspace
