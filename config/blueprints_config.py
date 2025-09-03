@@ -11,6 +11,7 @@ from routes.group_routes import group_bp
 from routes.plan_routes import plan_bp
 from routes.payment_routes import payment_bp
 from routes.report_controller import report_bp
+from routes.coupon_routes import coupon_bp
 
 def register_blueprints(app: Flask):
     """Registrar todos los blueprints de la aplicación"""
@@ -21,7 +22,8 @@ def register_blueprints(app: Flask):
         group_bp,
         plan_bp,
         payment_bp,
-        report_bp
+        report_bp,
+        coupon_bp
     ]
     
     for blueprint in blueprints:

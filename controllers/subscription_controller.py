@@ -27,12 +27,16 @@ def get_current_subscription():
                 ph.descripcion,
                 ph.fecha_aplicacion,
                 p.nombre as plan_nombre,
-                pi.fecha_hora as fecha_pago
+                COALESCE(pi.fecha_hora, ph.fecha_aplicacion) as fecha_pago,
+                c.codigo as cupon_codigo,
+                c.tipo_descuento,
+                c.valor as valor_descuento
             FROM pagos_historial ph
             JOIN planes p ON ph.id_plan = p.id
-            JOIN pagos_inbox pi ON ph.id_pago_inbox = pi.id
+            LEFT JOIN pagos_inbox pi ON ph.id_pago_inbox = pi.id
+            LEFT JOIN cupones c ON ph.id_cupon = c.id
             WHERE ph.id_clerk = :id_clerk
-            ORDER BY pi.fecha_hora DESC
+            ORDER BY ph.fecha_aplicacion DESC
         """)
         
         pagos = db.session.execute(sql_query, {"id_clerk": g.current_user.id_clerk}).fetchall()
@@ -44,7 +48,12 @@ def get_current_subscription():
             "fecha_pago": pago.fecha_pago.isoformat() if pago.fecha_pago else None,
             "estado": pago.estado,
             "plan": pago.plan_nombre,
-            "descripcion": pago.descripcion
+            "descripcion": pago.descripcion,
+            "descuento": {
+                "codigo": pago.cupon_codigo,
+                "tipo": pago.tipo_descuento,
+                "valor": pago.valor_descuento
+            } if pago.cupon_codigo else None
         } for pago in pagos]
 
         response = {

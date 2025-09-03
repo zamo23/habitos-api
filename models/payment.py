@@ -14,9 +14,10 @@ class PaymentHistory(db.Model):
     __tablename__ = 'pagos_historial'
 
     id = db.Column(db.String(36), primary_key=True)
-    id_pago_inbox = db.Column(db.String(36), db.ForeignKey('pagos_inbox.id', ondelete='CASCADE'), nullable=False)
+    id_pago_inbox = db.Column(db.String(36), db.ForeignKey('pagos_inbox.id', ondelete='CASCADE'), nullable=True)  # Permitimos NULL para cupones gratuitos
     id_clerk = db.Column(db.String(191), db.ForeignKey('usuarios.id_clerk', ondelete='CASCADE'), nullable=False)
     id_plan = db.Column(db.Integer, db.ForeignKey('planes.id'), nullable=False)
+    id_cupon = db.Column(db.String(36), db.ForeignKey('cupones.id', ondelete='SET NULL'), nullable=True)
     monto_centavos = db.Column(db.Integer, nullable=False)
     moneda = db.Column(db.String(3), nullable=False)
     estado = db.Column(db.Enum('confirmado', 'rechazado'), nullable=False, default='confirmado')
@@ -25,3 +26,4 @@ class PaymentHistory(db.Model):
 
     # Relaciones
     pago_inbox = db.relationship('PaymentInbox', backref=db.backref('historial', uselist=False))
+    cupon = db.relationship('models.coupon.Coupon', lazy='joined')

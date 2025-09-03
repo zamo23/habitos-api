@@ -1,8 +1,10 @@
 from flask import request, jsonify, g
-from models import db, PaymentInbox, PaymentHistory, Plan
 from services.auth_service import auth_required, verify_clerk_token, get_or_create_user
+from services.timezone_service import TimezoneService
 from datetime import datetime
 import uuid
+from . import db, PaymentInbox, PaymentHistory, Plan
+from models import User
 
 @auth_required
 def confirm_payment():
@@ -25,24 +27,27 @@ def confirm_payment():
         except (ValueError, TypeError):
             return jsonify({"error": "Formato de monto inválido"}), 400
             
-        # Validar que no haya un pago duplicado
-        fecha_hora = datetime.fromisoformat(data['fecha_hora'].replace('Z', '+00:00'))
+        timezone_service = TimezoneService()
+        fecha_hora_local = datetime.fromisoformat(data['fecha_hora'].replace('Z', '+00:00'))
+        user = User.query.filter_by(id_clerk=g.current_user.id_clerk).first()
+        user_timezone = user.zona_horaria if user else 'UTC'
+        fecha_hora_utc = timezone_service.to_utc(fecha_hora_local, user_timezone)
+
         existing_payment = PaymentInbox.query.filter_by(
             codigo_seguridad=data['codigo_seguridad'],
             monto_texto=data['monto'],
-            fecha_hora=fecha_hora
+            fecha_hora=fecha_hora_utc
         ).first()
         
         if existing_payment:
             return jsonify({"error": "Pago ya procesado"}), 409
 
-        # Crear registro en bandeja de pagos
         payment = PaymentInbox(
             id=str(uuid.uuid4()),
             remitente=data['remitente'],
             monto_texto=data['monto'],
             codigo_seguridad=data['codigo_seguridad'],
-            fecha_hora=fecha_hora
+            fecha_hora=fecha_hora_utc
         )
         db.session.add(payment)
         db.session.commit()
@@ -63,7 +68,6 @@ def verify_payment():
     if request.method == 'OPTIONS':
         return '', 200 
 
-    # Validar token de autorización
     auth_header = request.headers.get('Authorization')
     if not auth_header or not auth_header.startswith('Bearer '):
         return jsonify({'error': {'code': 'unauthorized', 'message': 'Token requerido'}}), 401
@@ -72,8 +76,7 @@ def verify_payment():
     payload = verify_clerk_token(token)
     if not payload:
         return jsonify({'error': {'code': 'invalid_token', 'message': 'Token inválido'}}), 401
-    
-    # Obtener o crear usuario
+
     try:
         user = get_or_create_user(payload)
         g.current_user = user
@@ -90,7 +93,6 @@ def verify_payment():
         return jsonify({"error": "Faltan campos requeridos"}), 400
         
     try:
-        # Obtener información del plan
         plan = Plan.query.get(data['id_plan'])
         if not plan:
             return jsonify({"error": "Plan no encontrado"}), 404
@@ -99,10 +101,9 @@ def verify_payment():
         codigo_seguridad = data.get('codigo_seguridad', '000')
         query = query.filter_by(codigo_seguridad=codigo_seguridad)
             
-        # Obtener todos los pagos que coincidan
         pagos = query.all()
         for pago in pagos:
-            # Verificar coincidencia de nombre y apellido
+
             nombre_completo_bd = ' '.join([part for part in pago.remitente.split() if len(part) > 1 and part[-1] != '.']).lower()
             nombre_buscar = data['primer_nombre'].lower()
             apellido_buscar = data['primer_apellido'].lower()
@@ -126,6 +127,11 @@ def verify_payment():
                 # Verificar si ya existe un registro en historial
                 existing_history = PaymentHistory.query.filter_by(id_pago_inbox=pago.id).first()
                 if existing_history:
+                    # Convertir las fechas UTC a la zona horaria del usuario
+                    timezone_service = TimezoneService()
+                    fecha_hora_usuario = timezone_service.to_user_timezone(pago.fecha_hora, g.current_user.id_clerk)
+                    fecha_aplicacion_usuario = timezone_service.to_user_timezone(existing_history.fecha_aplicacion, g.current_user.id_clerk)
+                    
                     return jsonify({
                         "aprobado": True,
                         "error": "Este pago ya fue procesado anteriormente",
@@ -133,8 +139,8 @@ def verify_payment():
                         "id_historial": existing_history.id,
                         "remitente": pago.remitente,
                         "monto": pago.monto_texto,
-                        "fecha_hora": pago.fecha_hora.isoformat(),
-                        "fecha_aplicacion": existing_history.fecha_aplicacion.isoformat(),
+                        "fecha_hora": fecha_hora_usuario.isoformat(),
+                        "fecha_aplicacion": fecha_aplicacion_usuario.isoformat(),
                         "estado": existing_history.estado,
                         "plan": {
                             "id": plan.id,
@@ -198,14 +204,19 @@ def verify_payment():
                     
                     db.session.commit()
 
+                    # Convertir las fechas UTC a la zona horaria del usuario antes de enviarlas
+                    timezone_service = TimezoneService()
+                    fecha_hora_usuario = timezone_service.to_user_timezone(pago.fecha_hora, g.current_user.id_clerk)
+                    fecha_aplicacion_usuario = timezone_service.to_user_timezone(payment_history.fecha_aplicacion, g.current_user.id_clerk)
+
                     return jsonify({
                         "aprobado": True,
                         "id_pago": pago.id,
                         "id_historial": payment_history.id,
                         "remitente": pago.remitente,
                         "monto": pago.monto_texto,
-                        "fecha_hora": pago.fecha_hora.isoformat(),
-                        "fecha_aplicacion": payment_history.fecha_aplicacion.isoformat(),
+                        "fecha_hora": fecha_hora_usuario.isoformat(),
+                        "fecha_aplicacion": fecha_aplicacion_usuario.isoformat(),
                         "plan": {
                             "id": plan.id,
                             "codigo": plan.codigo,
