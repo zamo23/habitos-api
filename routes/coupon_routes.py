@@ -1,5 +1,5 @@
 from flask import Blueprint
-from controllers.coupon_controller import create_coupon, verify_coupon, list_coupons, redeem_free_coupon
+from controllers.coupon_controller import redeem_free_coupon, verify_coupon
 
 coupon_bp = Blueprint('coupon', __name__, url_prefix='/api/v1')
 

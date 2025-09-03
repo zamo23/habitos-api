@@ -4,12 +4,46 @@ from models import db, Coupon, Plan, PaymentHistory
 from services.auth_service import auth_required, verify_clerk_token, get_or_create_user
 from datetime import datetime
 
+def verify_coupon():
+    """Verificar validez de un cupón"""
+    if request.method == 'OPTIONS':
+        return '', 200
+
+    if not request.is_json:
+        return jsonify({"error": {"code": "invalid_request", "message": "Content-Type debe ser application/json"}}), 400
+
+    data = request.json
+    codigo = data.get('codigo')
+    if not codigo:
+        return jsonify({"error": {"code": "validation_error", "message": "Se requiere el código del cupón"}}), 400
+
+    coupon = Coupon.query.filter_by(codigo=codigo).first()
+    if not coupon:
+        return jsonify({"error": {"code": "not_found", "message": "Cupón no encontrado"}}), 404
+
+    if not coupon.activo:
+        return jsonify({"error": {"code": "invalid_coupon", "message": "El cupón no está activo"}}), 400
+
+    if coupon.usos_actuales >= coupon.max_usos:
+        return jsonify({"error": {"code": "invalid_coupon", "message": "El cupón ha alcanzado el límite de usos"}}), 400
+
+    now = datetime.utcnow()
+    if coupon.fecha_inicio and now < coupon.fecha_inicio:
+        return jsonify({"error": {"code": "invalid_coupon", "message": "El cupón aún no está vigente"}}), 400
+    if coupon.fecha_fin and now > coupon.fecha_fin:
+        return jsonify({"error": {"code": "invalid_coupon", "message": "El cupón ha expirado"}}), 400
+
+    return jsonify({
+        "valido": True,
+        "tipo_descuento": coupon.tipo_descuento,
+        "valor": coupon.valor
+    })
+
 def redeem_free_coupon():
     """Redimir un cupón del 100% de descuento"""
     if request.method == 'OPTIONS':
         return '', 200
     
-    # Solo aplicar autenticación para solicitudes que no sean OPTIONS
     if request.method != 'OPTIONS':
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
@@ -35,33 +69,28 @@ def redeem_free_coupon():
         return jsonify({"error": "Se requiere el código del cupón y el ID del plan"}), 400
 
     try:
-        # Verificar el cupón
+
         print(f"Procesando cupón: {data}")  # Debug log
         coupon = Coupon.query.filter_by(codigo=data['codigo']).first()
         if not coupon:
             return jsonify({"error": "Cupón no encontrado"}), 404
-
-        # Verificar si el cupón está activo
+        
         if not coupon.activo:
             return jsonify({"error": "El cupón no está activo"}), 400
 
-        # Verificar el límite de usos
         if coupon.usos_actuales >= coupon.max_usos:
             return jsonify({"error": "El cupón ha alcanzado el límite de usos"}), 400
 
-        # Verificar las fechas de validez
         now = datetime.utcnow()
         if coupon.fecha_inicio and now < coupon.fecha_inicio:
             return jsonify({"error": "El cupón aún no está vigente"}), 400
         if coupon.fecha_fin and now > coupon.fecha_fin:
             return jsonify({"error": "El cupón ha expirado"}), 400
 
-        # Verificar que el plan exista
         plan = Plan.query.get(data['id_plan'])
         if not plan:
             return jsonify({"error": "Plan no encontrado"}), 404
 
-        # Verificar si el cupón resulta en un precio final de 0
         precio_original = plan.precio_centavos
         es_gratuito = False
 
@@ -74,7 +103,8 @@ def redeem_free_coupon():
             return jsonify({"error": "Este cupón no es válido para suscripción gratuita"}), 400
 
         try:
-            # Crear registro en historial de pagos
+            # Crear registro en historial de pagos con fecha UTC
+            utc_now = datetime.utcnow()
             payment_history = PaymentHistory(
                 id=str(uuid.uuid4()),
                 id_pago_inbox=None, 
@@ -84,7 +114,8 @@ def redeem_free_coupon():
                 monto_centavos=0,
                 moneda='PEN',
                 estado='confirmado',
-                descripcion=f'Suscripción gratuita con cupón {coupon.codigo}'
+                descripcion=f'Suscripción gratuita con cupón {coupon.codigo}',
+                fecha_aplicacion=utc_now 
             )
             
             db.session.add(payment_history)
@@ -99,8 +130,8 @@ def redeem_free_coupon():
             )
             db.session.flush()
             
-            # Crear nueva suscripción
-            fecha_inicio = datetime.utcnow()
+            # Crear nueva suscripción usando UTC
+            fecha_inicio = utc_now  
             fecha_fin = fecha_inicio.replace(month=fecha_inicio.month + 1) if fecha_inicio.month < 12 else fecha_inicio.replace(year=fecha_inicio.year + 1, month=1)
             
             nueva_suscripcion = {
@@ -132,14 +163,14 @@ def redeem_free_coupon():
                 "suscripcion": {
                     "id": nueva_suscripcion['id'],
                     "plan": plan.nombre,
-                    "periodo_inicio": fecha_inicio.isoformat(),
-                    "periodo_fin": fecha_fin.isoformat()
+                    "periodo_inicio": fecha_inicio.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                    "periodo_fin": fecha_fin.strftime('%Y-%m-%dT%H:%M:%SZ')
                 },
                 "pago": {
                     "id": payment_history.id,
                     "monto": 0,
                     "moneda": "PEN",
-                    "fecha": payment_history.fecha_aplicacion.isoformat(),
+                    "fecha": utc_now.strftime('%Y-%m-%dT%H:%M:%SZ'),
                     "estado": "confirmado",
                     "descuento": {
                         "tipo": coupon.tipo_descuento,
@@ -194,27 +225,22 @@ def verify_coupon():
         if not coupon:
             return jsonify({"error": "Cupón no encontrado"}), 404
 
-        # Verificar si el cupón está activo
         if not coupon.activo:
             return jsonify({"error": "El cupón no está activo"}), 400
 
-        # Verificar el límite de usos
         if coupon.usos_actuales >= coupon.max_usos:
             return jsonify({"error": "El cupón ha alcanzado el límite de usos"}), 400
 
-        # Verificar las fechas de validez
         now = datetime.utcnow()
         if coupon.fecha_inicio and now < coupon.fecha_inicio:
             return jsonify({"error": "El cupón aún no está vigente"}), 400
         if coupon.fecha_fin and now > coupon.fecha_fin:
             return jsonify({"error": "El cupón ha expirado"}), 400
 
-        # Obtener información del plan
         plan = Plan.query.get(data['id_plan'])
         if not plan:
             return jsonify({"error": "Plan no encontrado"}), 404
 
-        # Calcular el precio con descuento
         precio_original = plan.precio_centavos
         precio_final = precio_original
         es_gratuito = False
@@ -228,7 +254,6 @@ def verify_coupon():
             precio_final = max(0, precio_original - descuento)
             es_gratuito = descuento >= precio_original 
 
-        # Asegurar que el precio final nunca sea negativo
         precio_final = max(0, precio_final)
 
         return jsonify({

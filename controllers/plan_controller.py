@@ -1,8 +1,10 @@
 from flask import request, jsonify, g
 from models import db, Plan, Subscription, Habit, GroupMember
 from services.auth_service import auth_required
+from services.timezone_service import TimezoneService
 from sqlalchemy import text
 import uuid
+import pytz
 
 @auth_required
 def get_plans():
@@ -40,14 +42,28 @@ def get_my_subscription():
             'permite_grupos': subscription.plan.permite_grupos
         }
     
+    # Convertir fechas a zona horaria del usuario
+    user_timezone = pytz.timezone(g.current_user.zona_horaria)
+    
+    periodo_inicio = None
+    if subscription.periodo_inicio:
+        periodo_inicio = subscription.periodo_inicio.replace(tzinfo=pytz.UTC)
+        periodo_inicio = periodo_inicio.astimezone(user_timezone)
+    
+    periodo_fin = None
+    if subscription.periodo_fin:
+        periodo_fin = subscription.periodo_fin.replace(tzinfo=pytz.UTC)
+        periodo_fin = periodo_fin.astimezone(user_timezone)
+    
     return jsonify({
         'id': subscription.id,
         'plan': plan_data,
         'estado': subscription.estado,
         'ciclo': getattr(subscription, 'ciclo', None),
         'es_actual': getattr(subscription, 'es_actual', True),
-        'periodo_inicio': subscription.periodo_inicio.isoformat() if subscription.periodo_inicio else None,
-        'periodo_fin': subscription.periodo_fin.isoformat() if subscription.periodo_fin else None
+        'periodo_inicio': periodo_inicio.isoformat() if periodo_inicio else None,
+        'periodo_fin': periodo_fin.isoformat() if periodo_fin else None,
+        'zona_horaria': g.current_user.zona_horaria  # Incluimos la zona horaria para referencia
     })
 
 @auth_required

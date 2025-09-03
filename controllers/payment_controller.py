@@ -3,7 +3,7 @@ from services.auth_service import auth_required, verify_clerk_token, get_or_crea
 from services.timezone_service import TimezoneService
 from datetime import datetime
 import uuid
-from . import db, PaymentInbox, PaymentHistory, Plan
+from models import db, PaymentInbox, PaymentHistory, Plan
 from models import User
 
 @auth_required
