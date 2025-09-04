@@ -712,29 +712,63 @@ def get_habit_stats(habit_id):
 
 @auth_required
 def get_streaks_overview():
-    """Obtener resumen de rachas de todos los hábitos"""
-    habits = db.session.query(Habit).filter(
-        or_(
-            Habit.id_propietario == g.current_user.id_clerk,
-            Habit.id_grupo.in_(
-                db.session.query(GroupMember.id_grupo).filter_by(id_clerk=g.current_user.id_clerk)
-            )
-        )
-    ).filter(Habit.archivado == False).all()
+    pass
+
+@auth_required
+def get_weekly_progress():
+    from services.timezone_service import get_user_local_date
+    from datetime import datetime, timedelta
     
-    result = []
-    for habit in habits:
-        rachas = calculate_streak(habit.id, g.current_user.id_clerk)
+    hoy_local = get_user_local_date(g.current_user.id_clerk)
+    
+    dias_desde_lunes = hoy_local.weekday() 
+    lunes = hoy_local - timedelta(days=dias_desde_lunes)
+    
+    domingo = lunes + timedelta(days=6)
+    
+    semana = []
+    
+    for i in range(7):
+        fecha_actual = lunes + timedelta(days=i)
         
-        result.append({
-            'habit_id': habit.id,
-            'titulo': habit.titulo,
-            'tipo': habit.tipo,
-            'es_grupal': habit.id_grupo is not None,
-            'racha_actual': rachas['actual'],
-            'mejor_racha': rachas['mejor']
+        exitos = HabitEntry.query.filter(
+            HabitEntry.id_clerk == g.current_user.id_clerk,
+            HabitEntry.fecha == fecha_actual,
+            HabitEntry.estado == 'exito'
+        ).count()
+        
+        fallos = HabitEntry.query.filter(
+            HabitEntry.id_clerk == g.current_user.id_clerk,
+            HabitEntry.fecha == fecha_actual,
+            HabitEntry.estado == 'fallo'
+        ).count()
+        
+        total_habitos = Habit.query.filter(
+            or_(
+                Habit.id_propietario == g.current_user.id_clerk,
+                Habit.id_grupo.in_(
+                    db.session.query(GroupMember.id_grupo).filter_by(id_clerk=g.current_user.id_clerk)
+                )
+            ),
+            Habit.archivado == False
+        ).count()
+        
+        pendientes = total_habitos - (exitos + fallos)
+        
+        semana.append({
+            'fecha': fecha_actual.isoformat(),
+            'dia_semana': ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'][i],
+            'exitos': exitos,
+            'fallos': fallos,
+            'pendientes': pendientes,
+            'total': total_habitos,
+            'es_hoy': fecha_actual == hoy_local
         })
     
-    result.sort(key=lambda x: x['racha_actual'], reverse=True)
-    
-    return jsonify(result)
+    return jsonify({
+        'semana_actual': {
+            'fecha_inicio': lunes.isoformat(),
+            'fecha_fin': domingo.isoformat(),
+            'dias': semana
+        }
+    })
