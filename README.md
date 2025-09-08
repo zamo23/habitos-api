@@ -35,20 +35,34 @@ Esta API forma parte de un ecosistema más amplio y puede integrarse con:
 Para ejecutar la aplicación, necesitas configurar las siguientes variables en tu archivo `.env`:
 
 ```env
-# Configuración del Entorno
+# Environment Configuration
 FLASK_ENV=development
-CORS_ALLOWED_ORIGINS=*
+DEBUG=True
+PORT=5000
+TIMEZONE_DEFAULT=UTC
+CORS_ORIGINS=*
 
 # Clerk Authentication
 CLERK_SECRET_KEY=tu_clerk_secret_key
-CLERK_JWKS_URL=tu_clerk_jwks_url
+CLERK_JWKS_URL=https://tu-dominio.clerk.accounts.dev/.well-known/jwks.json
+CLERK_API_BASE=https://api.clerk.dev/v1
+CLERK_JWT_TEMPLATE_ID=tu_jwt_template_id
 
-# Configuración de la Base de Datos
+# Database Configuration
 DB_HOST=localhost
 DB_PORT=3306
 DB_NAME=habitos
 DB_USER=tu_usuario
 DB_PASSWORD=tu_contraseña
+
+# Mail Configuration
+MAIL_SERVER=tu_servidor_smtp.com
+MAIL_PORT=465
+MAIL_USE_SSL=True
+MAIL_USE_TLS=False
+MAIL_USERNAME=tu_correo@dominio.com
+MAIL_PASSWORD=tu_contraseña_email
+MAIL_DEFAULT_SENDER=tu_correo@dominio.com
 ```
 
 ### Configuración de Clerk
@@ -58,7 +72,15 @@ La API utiliza [Clerk](https://clerk.dev/) para la gestión de usuarios y autent
 1. Crea una cuenta en Clerk
 2. Configura una nueva aplicación
 3. Obtén tus credenciales (SECRET_KEY y JWKS_URL)
-4. Actualiza el archivo `.env` con tus credenciales
+4. Crea un JWT Template con los siguientes claims:
+   ```json
+   {
+     "email": "{{user.primary_email_address}}",
+     "nombre_completo": "{{user.full_name}}"
+   }
+   ```
+5. Obtén el ID de tu JWT Template (CLERK_JWT_TEMPLATE_ID)
+6. Actualiza el archivo `.env` con tus credenciales
 
 ## 🚀 Instalación y Ejecución
 

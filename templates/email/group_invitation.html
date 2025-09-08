@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Invitación a Grupo en Hábitos</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Poppins', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.7;
+            color: #2d3748;
+            background-color: #f7fafc;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .wrapper {
+            max-width: 650px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .container {
+            background-color: #ffffff;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.07);
+            border-top: 5px solid #4a6fa5;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 35px;
+        }
+        
+        .logo {
+            display: block;
+            margin: 0 auto 20px;
+            width: 90px;
+            height: auto;
+        }
+        
+        h1 {
+            color: #4a6fa5;
+            font-size: 28px;
+            font-weight: 600;
+            margin: 0;
+            letter-spacing: -0.5px;
+        }
+        
+        .greeting {
+            font-size: 18px;
+            margin-bottom: 25px;
+        }
+        
+        .message {
+            margin-bottom: 30px;
+            font-size: 16px;
+            color: #4a5568;
+        }
+        
+        .invitation-details {
+            background-color: #f8fafc;
+            border-left: 4px solid #4a6fa5;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .invitation-details p {
+            margin: 10px 0;
+        }
+        
+        .button-container {
+            text-align: center;
+            margin: 35px 0;
+        }
+        
+        .button {
+            display: inline-block;
+            padding: 14px 30px;
+            background-color: #4a6fa5;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            box-shadow: 0 4px 6px rgba(74, 111, 165, 0.2);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(74, 111, 165, 0.3);
+        }
+        
+        .alternative-link {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #718096;
+        }
+        
+        .link {
+            word-break: break-all;
+            font-size: 14px;
+            color: #4a6fa5;
+            background-color: #f1f5f9;
+            padding: 10px;
+            border-radius: 6px;
+            display: inline-block;
+            margin-top: 8px;
+            max-width: 100%;
+        }
+        
+        .expiry {
+            margin-top: 30px;
+            padding: 12px;
+            background-color: #fef9c3;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #854d0e;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 13px;
+            text-align: center;
+            color: #718096;
+        }
+        
+        @media screen and (max-width: 480px) {
+            .container {
+                padding: 25px;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <div class="container">
+            <div class="header">
+                <!-- Puedes agregar un logo aquí -->
+                <!-- <img src="https://tuhostingdeimagen.com/logo-habitos.png" alt="Logo Hábitos" class="logo"> -->
+                <h1>¡Te han invitado a un grupo!</h1>
+            </div>
+            
+            <p class="greeting">Hola,</p>
+            
+            <p class="message"><strong>{{ invitador_nombre }}</strong> te ha invitado a unirte al grupo <strong>{{ nombre_grupo }}</strong> en la aplicación Hábitos.</p>
+            
+            <div class="invitation-details">
+                <p><strong>📌 Grupo:</strong> {{ nombre_grupo }}</p>
+                <p><strong>📝 Descripción:</strong> {{ descripcion_grupo }}</p>
+                <p><strong>👤 Invitado por:</strong> {{ invitador_nombre }}</p>
+            </div>
+            
+            <p class="message">En este grupo podrán compartir hábitos y motivarse mutuamente para alcanzar sus metas.</p>
+            
+            <div class="button-container">
+                <a href="{{ url_aceptar }}" class="button">Unirme al grupo</a>
+            </div>
+            
+            <p class="alternative-link">Si el botón no funciona, copia y pega este enlace en tu navegador:</p>
+            <div class="link">{{ url_aceptar }}</div>
+            
+            <div class="expiry">
+                <strong>⏰ Nota:</strong> La invitación expirará en 7 días.
+            </div>
+            
+            <div class="footer">
+                <p>Este correo fue enviado desde la aplicación Hábitos. Si no reconoces esta invitación, puedes ignorar este mensaje.</p>
+                <p>&copy; 2025 Hábitos. Todos los derechos reservados.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

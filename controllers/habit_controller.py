@@ -1,5 +1,5 @@
 from services.timezone_service import format_datetime, to_user_timezone, get_user_local_date
-from flask import request, jsonify, g
+from flask import request, jsonify, g, current_app
 from models import db, Habit, HabitEntry, HabitStreak, GroupMember
 from services.auth_service import auth_required
 from services.date_service import parse_date
@@ -19,15 +19,43 @@ def get_habits():
     estado = request.args.get('estado', 'activos')
     page = int(request.args.get('page', 1))
     limit = min(int(request.args.get('limit', 20)), 100)
+    incluir_grupales = request.args.get('incluir_grupales', 'true').lower() == 'true'
     
-    query = db.session.query(Habit).filter(
-        or_(
-            Habit.id_propietario == g.current_user.id_clerk,
-            Habit.id_grupo.in_(
-                db.session.query(GroupMember.id_grupo).filter_by(id_clerk=g.current_user.id_clerk)
+    # Registrar el usuario actual para depuración
+    current_app.logger.info(f"get_habits llamado para usuario: {g.current_user.id_clerk}")
+    current_app.logger.info(f"Parámetros: tipo={tipo}, estado={estado}, incluir_grupales={incluir_grupales}")
+    
+    # Si solo queremos hábitos personales
+    if not incluir_grupales:
+        current_app.logger.info("No incluyendo hábitos grupales por petición del cliente")
+        query = Habit.query.filter_by(id_propietario=g.current_user.id_clerk)
+    else:
+        # Obtener IDs de grupos a los que pertenece el usuario
+        group_memberships = GroupMember.query.filter_by(id_clerk=g.current_user.id_clerk).all()
+        group_ids = [membership.id_grupo for membership in group_memberships]
+        
+        # Registrar los grupos para depuración
+        current_app.logger.info(f"Usuario pertenece a {len(group_ids)} grupos: {group_ids}")
+        
+        # Verificar si hay grupos
+        if not group_ids:
+            current_app.logger.info("Usuario no pertenece a ningún grupo, solo se incluirán hábitos personales")
+            query = Habit.query.filter_by(id_propietario=g.current_user.id_clerk)
+        else:
+            # Consulta que incluye hábitos personales y grupales
+            current_app.logger.info("Construyendo consulta para hábitos personales y grupales")
+            query = db.session.query(Habit).filter(
+                or_(
+                    Habit.id_propietario == g.current_user.id_clerk,
+                    Habit.id_grupo.in_(group_ids)
+                )
             )
-        )
-    )
+            
+            # Debug - Obtener la consulta SQL generada
+            sql_statement = str(query.statement.compile(
+                compile_kwargs={"literal_binds": True}
+            ))
+            current_app.logger.info(f"SQL generado: {sql_statement}")
     
     if tipo:
         query = query.filter(Habit.tipo == tipo)
@@ -38,10 +66,27 @@ def get_habits():
         query = query.filter(Habit.archivado == True)
     
     habits = query.offset((page - 1) * limit).limit(limit).all()
+    
+    # Registrar cuántos hábitos se encontraron
+    current_app.logger.info(f"Se encontraron {len(habits)} hábitos en total")
+    
+    # Contar hábitos personales vs grupales para depuración
+    personal_habits = sum(1 for h in habits if h.id_grupo is None)
+    group_habits = sum(1 for h in habits if h.id_grupo is not None)
+    current_app.logger.info(f"Desglose: {personal_habits} personales, {group_habits} grupales")
+    
+    # Si hay hábitos grupales, listar sus IDs para depuración
+    if group_habits > 0:
+        group_habit_ids = [h.id for h in habits if h.id_grupo is not None]
+        current_app.logger.info(f"IDs de hábitos grupales encontrados: {group_habit_ids}")
+    
     hoy_local = get_user_local_date(g.current_user.id_clerk)
     
     result = []
     for habit in habits:
+        # Registrar cada hábito para depuración
+        current_app.logger.info(f"Procesando hábito: {habit.id}, es_grupal: {habit.id_grupo is not None}")
+        
         rachas = calculate_streak(habit.id, g.current_user.id_clerk)
 
         registro_hoy = HabitEntry.query.filter_by(
@@ -301,10 +346,30 @@ def delete_habit(habit_id):
     """Eliminar un hábito"""
     habit = Habit.query.get_or_404(habit_id)
     
-    if habit.id_propietario != g.current_user.id_clerk:
-        return jsonify({'error': {'code': 'forbidden', 'message': 'Solo el propietario puede eliminar'}}), 403
+    # Verificar permisos
+    current_app.logger.info(f"Usuario {g.current_user.id_clerk} intentando eliminar hábito {habit_id}")
+    
+    # Si es un hábito personal (no de grupo), solo el propietario puede eliminarlo
+    if not habit.id_grupo and habit.id_propietario != g.current_user.id_clerk:
+        current_app.logger.warning(f"Acceso denegado: Usuario {g.current_user.id_clerk} no es propietario del hábito personal {habit_id}")
+        return jsonify({'error': {'code': 'forbidden', 'message': 'Solo el propietario puede eliminar este hábito'}}), 403
+    
+    # Si es un hábito grupal, verificar si el usuario es propietario o administrador del grupo
+    if habit.id_grupo:
+        is_owner = habit.id_propietario == g.current_user.id_clerk
+        
+        # Verificar si es administrador del grupo
+        is_admin = GroupMember.query.filter_by(
+            id_grupo=habit.id_grupo,
+            id_clerk=g.current_user.id_clerk
+        ).filter(GroupMember.rol.in_(['propietario', 'administrador'])).first() is not None
+        
+        if not (is_owner or is_admin):
+            current_app.logger.warning(f"Acceso denegado: Usuario {g.current_user.id_clerk} no tiene permisos en el grupo para eliminar hábito {habit_id}")
+            return jsonify({'error': {'code': 'forbidden', 'message': 'Solo el propietario o administradores del grupo pueden eliminar este hábito'}}), 403
     
     try:
+        current_app.logger.info(f"Eliminando hábito {habit_id}")
         # 1. Eliminar registros de rachas
         db.session.execute(text("DELETE FROM habito_rachas WHERE id_habito = :habit_id"), {"habit_id": habit_id})
         
@@ -315,7 +380,13 @@ def delete_habit(habit_id):
         db.session.execute(text("DELETE FROM habitos WHERE id = :habit_id"), {"habit_id": habit_id})
         
         db.session.commit()
+        current_app.logger.info(f"Hábito {habit_id} eliminado exitosamente")
         return jsonify({'ok': True})
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error eliminando hábito {habit_id}: {e}")
+        return jsonify({'error': {'code': 'database_error', 'message': 'Error al eliminar el hábito'}}), 500
         
     except Exception as e:
         db.session.rollback()

@@ -58,6 +58,14 @@ def update_me():
     
     if 'nombre_completo' in data:
         user.nombre_completo = data['nombre_completo']
+        
+    # Permitir actualizar el correo electrónico
+    if 'correo' in data:
+        user.correo = data['correo']
+        
+    # Permitir actualizar URL de imagen
+    if 'url_imagen' in data:
+        user.url_imagen = data['url_imagen']
     
     db.session.commit()
     
