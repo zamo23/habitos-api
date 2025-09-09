@@ -168,9 +168,16 @@ def auth_required(f):
     """Decorador para requerir autenticación"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Permitir solicitudes OPTIONS sin autenticación
+        # Permitir solicitudes OPTIONS sin autenticación y retornar inmediatamente
         if request.method == 'OPTIONS':
-            return f(*args, **kwargs)
+            from flask import Response
+            response = Response('')
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Accept,Origin')
+            response.headers.add('Access-Control-Allow-Credentials', 'true')
+            response.headers.add('Access-Control-Max-Age', '86400')
+            return response
             
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):

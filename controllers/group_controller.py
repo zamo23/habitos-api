@@ -271,9 +271,38 @@ def verify_invitation():
         }
     })
 
-@auth_required
 def accept_invite():
     """Aceptar invitación para unirse a un grupo"""
+    # Manejar solicitudes OPTIONS directamente
+    if request.method == 'OPTIONS':
+        from flask import Response
+        response = Response('')
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Accept,Origin')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        response.headers.add('Access-Control-Max-Age', '86400')
+        return response
+    
+    # Para solicitudes POST, requerir autenticación
+    from services.auth_service import verify_clerk_token, get_or_create_user
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({'error': {'code': 'unauthorized', 'message': 'Token requerido'}}), 401
+    
+    token = auth_header.split(' ')[1]
+    payload = verify_clerk_token(token)
+    if not payload:
+        return jsonify({'error': {'code': 'invalid_token', 'message': 'Token inválido'}}), 401
+    
+    # Obtener o crear usuario
+    try:
+        user = get_or_create_user(payload)
+        g.current_user = user
+    except Exception as e:
+        current_app.logger.error(f"Error en autenticación: {str(e)}")
+        return jsonify({'error': {'code': 'server_error', 'message': 'Error de servidor'}}), 500
+    
     data = request.get_json()
     invite_token = data.get('token')
     
