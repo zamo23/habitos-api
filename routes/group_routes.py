@@ -1,7 +1,7 @@
 from flask import Blueprint
 from controllers.group_controller import (
-    get_groups, create_group, get_group, update_group, 
-    add_member, remove_member, create_invite, accept_invite, 
+    get_groups, create_group, get_group, update_group, delete_group,
+    add_member, remove_member, update_member_role, create_invite, accept_invite, 
     get_invites, get_group_invites, verify_invitation, create_batch_invites,
     leave_group
 )
@@ -12,8 +12,10 @@ group_bp.add_url_rule('', view_func=get_groups, methods=['GET'])
 group_bp.add_url_rule('', view_func=create_group, methods=['POST'])
 group_bp.add_url_rule('/<string:group_id>', view_func=get_group, methods=['GET'])
 group_bp.add_url_rule('/<string:group_id>', view_func=update_group, methods=['PATCH'])
+group_bp.add_url_rule('/<string:group_id>', view_func=delete_group, methods=['DELETE'])
 group_bp.add_url_rule('/<string:group_id>/members', view_func=add_member, methods=['POST'])
 group_bp.add_url_rule('/<string:group_id>/members/<string:member_id>', view_func=remove_member, methods=['DELETE'])
+group_bp.add_url_rule('/<string:group_id>/members/<string:member_id>/role', view_func=update_member_role, methods=['PATCH'])
 group_bp.add_url_rule('/<string:group_id>/leave', view_func=leave_group, methods=['POST'])
 group_bp.add_url_rule('/<string:group_id>/invites', view_func=create_invite, methods=['POST'])
 group_bp.add_url_rule('/<string:group_id>/invites', view_func=get_group_invites, methods=['GET'])

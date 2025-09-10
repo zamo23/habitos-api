@@ -67,15 +67,12 @@ def get_habits():
     
     habits = query.offset((page - 1) * limit).limit(limit).all()
     
-    # Registrar cuántos hábitos se encontraron
     current_app.logger.info(f"Se encontraron {len(habits)} hábitos en total")
     
-    # Contar hábitos personales vs grupales para depuración
     personal_habits = sum(1 for h in habits if h.id_grupo is None)
     group_habits = sum(1 for h in habits if h.id_grupo is not None)
     current_app.logger.info(f"Desglose: {personal_habits} personales, {group_habits} grupales")
     
-    # Si hay hábitos grupales, listar sus IDs para depuración
     if group_habits > 0:
         group_habit_ids = [h.id for h in habits if h.id_grupo is not None]
         current_app.logger.info(f"IDs de hábitos grupales encontrados: {group_habit_ids}")
@@ -128,24 +125,30 @@ def create_habit():
     titulo = data.get('titulo')
     tipo = data.get('tipo')
     id_grupo = data.get('id_grupo')
-    
+
     if not titulo or tipo not in ['hacer', 'dejar']:
         return jsonify({'error': {'code': 'validation_error', 'message': 'Datos inválidos'}}), 422
-    
+
+    # Si es hábito grupal, validar rol
+    if id_grupo:
+        miembro = GroupMember.query.filter_by(id_grupo=id_grupo, id_clerk=g.current_user.id_clerk).first()
+        if not miembro or miembro.rol not in ['propietario', 'administrador']:
+            return jsonify({'error': {'code': 'forbidden', 'message': 'Solo propietario o administrador pueden crear hábitos en el grupo'}}), 403
+
     result = check_habit_limit(g.current_user.id_clerk, id_grupo)
     if result.get('error'):
         return jsonify({'error': result['error']}), 403
-    
+
     habit = Habit(
         titulo=titulo,
         tipo=tipo,
         id_propietario=g.current_user.id_clerk,
         id_grupo=id_grupo
     )
-    
+
     db.session.add(habit)
     db.session.commit()
-    
+
     return jsonify({
         'id': habit.id,
         'titulo': habit.titulo,

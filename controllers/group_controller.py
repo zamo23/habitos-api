@@ -127,6 +127,40 @@ def update_group(group_id):
     })
 
 @auth_required
+def delete_group(group_id):
+    """Eliminar un grupo (solo propietario). Elimina miembros e invitaciones por cascada y desvincula hábitos."""
+    group = Group.query.get_or_404(group_id)
+
+    if group.id_propietario != g.current_user.id_clerk:
+        current_app.logger.error(f"Intento de borrado por no propietario: {g.current_user.id_clerk} para grupo {group_id}")
+        return jsonify({'error': {'code': 'forbidden', 'message': 'Solo el propietario puede eliminar el grupo'}}), 403
+
+    try:
+        miembros = GroupMember.query.filter_by(id_grupo=group_id).all()
+        invitaciones = GroupInvite.query.filter_by(id_grupo=group_id).all()
+        habitos = db.session.query(db.Model).filter(getattr(db.Model, 'id_grupo', None) == group_id).all() if hasattr(db.Model, 'id_grupo') else []
+
+        current_app.logger.info(f"[DELETE_GROUP] Miembros antes de borrar: {[m.id_clerk for m in miembros]}")
+        current_app.logger.info(f"[DELETE_GROUP] Invitaciones antes de borrar: {[i.id for i in invitaciones]}")
+        # Si tienes modelo Habit, puedes loggear los hábitos grupales:
+        try:
+            from models.habit import Habit
+            habitos_grupo = Habit.query.filter_by(id_grupo=group_id).all()
+            current_app.logger.info(f"[DELETE_GROUP] Habitos grupales antes de borrar: {[h.id for h in habitos_grupo]}")
+        except Exception as e:
+            current_app.logger.warning(f"[DELETE_GROUP] No se pudo loggear hábitos: {str(e)}")
+
+        current_app.logger.info(f"[DELETE_GROUP] Borrando grupo {group_id}")
+        db.session.delete(group)
+        db.session.commit()
+        current_app.logger.info(f"[DELETE_GROUP] Grupo {group_id} eliminado correctamente")
+        return jsonify({'ok': True, 'message': 'Grupo eliminado correctamente'}), 200
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"[DELETE_GROUP] Error eliminando grupo {group_id}: {str(e)}", exc_info=True)
+        return jsonify({'error': {'code': 'server_error', 'message': f'No se pudo eliminar el grupo: {str(e)}'}}), 500
+
+@auth_required
 def add_member(group_id):
     """Agregar miembro a un grupo"""
     group = Group.query.get_or_404(group_id)
@@ -198,6 +232,54 @@ def remove_member(group_id, member_id):
     db.session.commit()
     
     return jsonify({'ok': True})
+
+@auth_required
+def update_member_role(group_id, member_id):
+    """Actualizar el rol de un miembro del grupo"""
+    group = Group.query.get_or_404(group_id)
+    member = GroupMember.query.filter_by(
+        id_grupo=group_id,
+        id_clerk=g.current_user.id_clerk
+    ).first()
+    
+    if not member or member.rol not in ['propietario', 'administrador']:
+        return jsonify({'error': {'code': 'forbidden', 'message': 'Sin permisos para cambiar roles'}}), 403
+    
+    # No permitir cambiar el rol del propietario
+    if group.id_propietario == member_id:
+        return jsonify({'error': {'code': 'forbidden', 'message': 'No se puede cambiar el rol del propietario'}}), 403
+    
+    # No permitir que un administrador cambie el rol de otro administrador (solo el propietario puede)
+    member_to_update = GroupMember.query.filter_by(
+        id_grupo=group_id,
+        id_clerk=member_id
+    ).first()
+    
+    if not member_to_update:
+        return jsonify({'error': {'code': 'not_found', 'message': 'Miembro no encontrado'}}), 404
+    
+    # Si el usuario actual es administrador, no puede cambiar roles de otros administradores
+    if member.rol == 'administrador' and member_to_update.rol == 'administrador':
+        return jsonify({'error': {'code': 'forbidden', 'message': 'Los administradores no pueden cambiar roles de otros administradores'}}), 403
+    
+    data = request.get_json()
+    new_role = data.get('rol')
+    
+    if not new_role:
+        return jsonify({'error': {'code': 'validation_error', 'message': 'Rol requerido'}}), 422
+    
+    if new_role not in ['administrador', 'miembro']:
+        return jsonify({'error': {'code': 'validation_error', 'message': 'Rol inválido. Debe ser "administrador" o "miembro"'}}), 422
+    
+    # Actualizar el rol
+    member_to_update.rol = new_role
+    db.session.commit()
+    
+    return jsonify({
+        'id_clerk': member_to_update.id_clerk,
+        'rol': member_to_update.rol,
+        'mensaje': f'Rol actualizado a {new_role}'
+    })
 
 @auth_required
 def leave_group(group_id):
@@ -335,7 +417,7 @@ def accept_invite():
     new_member = GroupMember(
         id_grupo=invitacion.id_grupo,
         id_clerk=g.current_user.id_clerk,
-        rol='miembro'
+        rol=invitacion.rol
     )
     
     # Actualizar estado de la invitación
@@ -350,9 +432,10 @@ def accept_invite():
     return jsonify({
         'id_grupo': group.id,
         'nombre_grupo': group.nombre,
-        'rol': 'miembro'
+        'rol': invitacion.rol
     }), 200
 
+@auth_required
 @auth_required
 def get_invites():
     """Obtener todas las invitaciones del usuario por correo electrónico"""
@@ -377,6 +460,7 @@ def get_invites():
             'id_grupo': invite.id_grupo,
             'nombre_grupo': group.nombre if group else "Grupo desconocido",
             'invitador': invite.id_invitador,
+            'rol': invite.rol,
             'fecha_creacion': invite.fecha_creacion.isoformat(),
             'expira_en': invite.expira_en.isoformat()
         })
@@ -408,6 +492,7 @@ def get_group_invites(group_id):
         result.append({
             'id': invite.id,
             'correo_invitado': invite.correo_invitado,
+            'rol': invite.rol,
             'estado': invite.estado,
             'fecha_creacion': invite.fecha_creacion.isoformat(),
             'expira_en': invite.expira_en.isoformat()
@@ -430,6 +515,10 @@ def create_invite(group_id):
     data = request.get_json()
     correo_invitado = data.get('correo')
     id_usuario_existente = data.get('id_usuario')
+    rol = data.get('rol', 'miembro')
+    
+    if rol not in ['administrador', 'miembro']:
+        return jsonify({'error': {'code': 'validation_error', 'message': 'Rol inválido. Debe ser "administrador" o "miembro"'}}), 422
     
     if not correo_invitado and not id_usuario_existente:
         return jsonify({'error': {'code': 'validation_error', 'message': 'Correo o ID de usuario requerido'}}), 422
@@ -450,7 +539,8 @@ def create_invite(group_id):
         correo_invitado=correo_invitado,
         token=token,
         estado='pendiente',
-        expira_en=datetime.utcnow() + timedelta(days=7)
+        expira_en=datetime.utcnow() + timedelta(days=7),
+        rol=rol
     )
     
     db.session.add(invitacion)
@@ -518,6 +608,10 @@ def create_batch_invites(group_id):
     
     data = request.get_json()
     correos = data.get('correos', [])
+    rol = data.get('rol', 'miembro')
+    
+    if rol not in ['administrador', 'miembro']:
+        return jsonify({'error': {'code': 'validation_error', 'message': 'Rol inválido. Debe ser "administrador" o "miembro"'}}), 422
     
     if not correos or not isinstance(correos, list) or len(correos) == 0:
         return jsonify({'error': {'code': 'validation_error', 'message': 'Se requiere una lista de correos'}}), 422
@@ -551,7 +645,8 @@ def create_batch_invites(group_id):
                 correo_invitado=correo_invitado,
                 token=token,
                 estado='pendiente',
-                expira_en=datetime.utcnow() + timedelta(days=7)
+                expira_en=datetime.utcnow() + timedelta(days=7),
+                rol=rol
             )
             
             db.session.add(invitacion)
