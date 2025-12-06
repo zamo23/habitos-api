@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_migrate import Migrate
 
@@ -67,7 +67,24 @@ def configure_cors(app: Flask):
     # Utilizamos Flask-CORS para una gestión completa de CORS
     CORS(
         app,
-        resources={r"/api/*": {"origins": origins}},
-        supports_credentials=True,
-        automatic_options=True  # Habilitamos automatic_options para que Flask-CORS gestione todo
+        resources={r"/api/*": {
+            "origins": origins,
+            "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+            "supports_credentials": True,
+            "max_age": 86400
+        }},
+        supports_credentials=True
     )
+    
+    # Añadir un manejador global para OPTIONS requests como fallback
+    @app.before_request
+    def handle_options_requests():
+        if request.method == 'OPTIONS':
+            response = jsonify({})
+            response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
+            response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Accept,Origin')
+            response.headers.add('Access-Control-Allow-Credentials', 'true')
+            response.headers.add('Access-Control-Max-Age', '86400')
+            return response, 200
