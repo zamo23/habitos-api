@@ -16,4 +16,4 @@ pymysql
 pytz
 dependency-injector
 pytest
-python-logging-json
+python-json-logger

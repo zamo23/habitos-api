@@ -635,6 +635,15 @@ def create_batch_invites(group_id):
                 'error': 'Formato de correo inválido'
             })
             continue
+        
+        # Validar que el usuario invitado esté registrado
+        usuario_invitado = User.query.filter_by(correo=correo_invitado).first()
+        if not usuario_invitado:
+            errores.append({
+                'correo': correo_invitado,
+                'error': 'El usuario no está registrado en la plataforma'
+            })
+            continue
             
         try:
             token = secrets.token_hex(32)
@@ -645,8 +654,7 @@ def create_batch_invites(group_id):
                 correo_invitado=correo_invitado,
                 token=token,
                 estado='pendiente',
-                expira_en=datetime.utcnow() + timedelta(days=7),
-                rol=rol
+                expira_en=datetime.utcnow() + timedelta(days=7)
             )
             
             db.session.add(invitacion)

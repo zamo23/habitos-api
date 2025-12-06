@@ -61,6 +61,10 @@ CREATE TABLE `planes` (
   UNIQUE KEY `codigo` (`codigo`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- Insertar plan premium por defecto
+INSERT INTO `planes` (`codigo`, `nombre`, `precio_centavos`, `moneda`, `max_habitos`, `permite_grupos`, `descripcion`, `activo`) VALUES
+('premium', 'Premium', 0, 'USD', NULL, 1, 'Plan premium con todas las funcionalidades', 1);
+
 -- --------------------------------------------------------
 
 --
@@ -308,7 +312,7 @@ CREATE TRIGGER `trg_usuarios_after_insert` AFTER INSERT ON `usuarios` FOR EACH R
 
   SELECT id INTO v_plan_id
   FROM planes
-  WHERE codigo = 'gratis' AND activo = 1
+  WHERE codigo = 'premium' AND activo = 1
   LIMIT 1;
 
   UPDATE suscripciones
@@ -326,6 +330,9 @@ END
 $$
 DELIMITER ;
 
+-- --------------------------------------------------------
+ALTER TABLE grupo_invitaciones
+ADD COLUMN rol VARCHAR(50) DEFAULT 'miembro';
 -- --------------------------------------------------------
 
 --

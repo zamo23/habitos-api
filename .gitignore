@@ -1,5 +1,6 @@
 # .gitignore
 .env
+.env.dev
 __pycache__/
 logs/
 *.pyc

@@ -9,10 +9,6 @@ def configure_logging():
         'formatters': {
             'standard': {
                 'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
-            },
-            'json': {
-                'class': 'pythonjsonlogger.jsonlogger.JsonFormatter',
-                'format': '%(asctime)s %(levelname)s %(name)s %(message)s'
             }
         },
         'handlers': {
@@ -26,7 +22,7 @@ def configure_logging():
                 'filename': os.path.join('logs', 'app.log'),
                 'maxBytes': 10485760,  # 10MB
                 'backupCount': 5,
-                'formatter': 'json',
+                'formatter': 'standard',
                 'level': 'INFO'
             }
         },

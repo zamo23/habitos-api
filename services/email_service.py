@@ -2,6 +2,7 @@ from flask import current_app, render_template
 from flask_mail import Message
 from config.mail_config import mail
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,12 @@ def send_group_invitation(email, invitation_data):
             - token: Token de invitación
             - url_base: URL base de la aplicación (opcional)
     """
+    # Verificar si el envío de correos está habilitado
+    mail_enabled = os.getenv('MAIL_ENABLED', 'True').lower() == 'true'
+    if not mail_enabled:
+        logger.info(f"Envío de correos desactivado. No se envió correo a {email}")
+        return True
+    
     try:
         # Configurar la URL de aceptación
         url_base = invitation_data.get('url_base', 'https://habitos.cvpx.lat')
