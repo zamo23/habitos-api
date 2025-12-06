@@ -1,7 +1,7 @@
 from flask import Blueprint
 from controllers.user_controller import me, update_me, get_local_time, get_recent_activity, get_timezones, detect_timezone, get_activity_heatmap, get_habit_summary, get_weekly_progress
 
-user_bp = Blueprint('users', __name__, url_prefix='/api/v1')
+user_bp = Blueprint('users', __name__, url_prefix='/api/v1/users')
 
 user_bp.add_url_rule('/me', view_func=me, methods=['GET'])
 user_bp.add_url_rule('/me', view_func=update_me, methods=['PATCH'])

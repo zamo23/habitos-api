@@ -304,6 +304,59 @@ CREATE TABLE `suscripciones` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
+-- Estructura para coasch consejero con IA
+--
+CREATE TABLE `ia_analisis_diario` (
+  `id` char(36) NOT NULL,
+  `id_clerk` varchar(191) NOT NULL,
+  `fecha_analisis` date NOT NULL,
+  `datos_enviados` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin,
+  `respuesta_ia` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin,
+  `estado_procesamiento` enum('pendiente','procesado','error') NOT NULL DEFAULT 'pendiente',
+  `error_mensaje` text DEFAULT NULL,
+  `fecha_creacion` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_analisis_usuario_fecha` (`id_clerk`,`fecha_analisis`),
+  KEY `idx_analisis_estado` (`estado_procesamiento`),
+  CONSTRAINT `fk_analisis_usuario` FOREIGN KEY (`id_clerk`) REFERENCES `usuarios` (`id_clerk`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `ia_consejos` (
+  `id` char(36) NOT NULL,
+  `id_analisis` char(36) NOT NULL,
+  `id_clerk` varchar(191) NOT NULL,
+  `tipo_consejo` enum('motivacion','mejora_habito','nuevo_habito','ruptura_racha','felicitacion') NOT NULL,
+  `titulo` varchar(200) NOT NULL,
+  `contenido` longtext NOT NULL,
+  `leido` tinyint(1) NOT NULL DEFAULT 0,
+  `fecha_lectura` datetime DEFAULT NULL,
+  `generado_en` datetime NOT NULL,
+  `fecha_creacion` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_consejo_usuario` (`id_clerk`),
+  KEY `idx_consejo_tipo` (`tipo_consejo`),
+  KEY `idx_consejo_fecha` (`generado_en`),
+  KEY `fk_consejo_analisis` (`id_analisis`),
+  CONSTRAINT `fk_consejo_usuario` FOREIGN KEY (`id_clerk`) REFERENCES `usuarios` (`id_clerk`) ON DELETE CASCADE,
+  CONSTRAINT `fk_consejo_analisis` FOREIGN KEY (`id_analisis`) REFERENCES `ia_analisis_diario` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `ia_consejos_interacciones` (
+  `id` char(36) NOT NULL,
+  `id_consejo` char(36) NOT NULL,
+  `id_clerk` varchar(191) NOT NULL,
+  `accion` enum('visto','archivado','seguido','ignorado') NOT NULL,
+  `fecha_accion` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_interaccion_consejo` (`id_consejo`),
+  KEY `idx_interaccion_usuario` (`id_clerk`),
+  CONSTRAINT `fk_interaccion_consejo` FOREIGN KEY (`id_consejo`) REFERENCES `ia_consejos` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_interaccion_usuario` FOREIGN KEY (`id_clerk`) REFERENCES `usuarios` (`id_clerk`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Disparadores `usuarios`
 --
 DELIMITER $$

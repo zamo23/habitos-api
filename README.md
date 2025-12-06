@@ -19,6 +19,8 @@ Esta API forma parte de un ecosistema más amplio y puede integrarse con:
 - Gestión de zonas horarias
 - Sistema de notificaciones
 
+- 🤖 **Agente de Coaching con IA** - Asistente inteligente impulsado por Google Gemini (gemini-2.5-flash-lite) para proporcionar coaching personalizado y recomendaciones de hábitos
+
 ## 🛠 Tecnologías Utilizadas
 
 - Python 3.13
@@ -63,6 +65,9 @@ MAIL_USE_TLS=False
 MAIL_USERNAME=tu_correo@dominio.com
 MAIL_PASSWORD=tu_contraseña_email
 MAIL_DEFAULT_SENDER=tu_correo@dominio.com
+
+API_GEMINI=TOKEN...API
+GEMINI_MODEL=gemini-2.5-flash-lite
 ```
 
 ### Configuración de Clerk

@@ -14,6 +14,7 @@ from routes.report_controller import report_bp
 from routes.coupon_routes import coupon_bp
 from routes.notification_routes import notification_bp
 from routes.group_habit_routes import group_habit_bp
+from routes.ia_coach_routes import crear_rutas_ia_coach
 
 debug_bp = None
 
@@ -32,6 +33,10 @@ def register_blueprints(app: Flask):
         notification_bp,
         group_habit_bp
     ]
+    
+    # Registrar blueprint de IA Coach
+    ia_coach_bp = crear_rutas_ia_coach(app)
+    blueprints.append(ia_coach_bp)
     
     # Registrar blueprint de depuración solo en modo desarrollo
     is_development = os.getenv('FLASK_ENV') == 'development' or app.config.get('DEBUG', False)

@@ -738,22 +738,27 @@ def get_habits_dashboard():
         }
     })
 
-@auth_required
-def get_habit_stats(habit_id):
-    """Obtener estadísticas de un hábito específico con registros recientes"""
+def _build_habit_stats(habit_id, user_id):
+    """Helper privado para construir estadísticas de un hábito individual"""
     habit = Habit.query.get_or_404(habit_id)
     
-    if not user_has_access_to_habit(habit_id, g.current_user.id_clerk):
-        return jsonify({'error': {'code': 'forbidden', 'message': 'Sin acceso al hábito'}}), 403
+    if not user_has_access_to_habit(habit_id, user_id):
+        return None
     
-    rachas = calculate_streak(habit_id, g.current_user.id_clerk)
+    rachas = calculate_streak(habit_id, user_id)
     
-    total_registros = HabitEntry.query.filter_by(
+    # Obtener todos los registros del hábito
+    registros = HabitEntry.query.filter_by(
         id_habito=habit_id,
-        id_clerk=g.current_user.id_clerk
-    ).count()
+        id_clerk=user_id
+    ).all()
     
-    registros_recientes = get_habit_recent_entries(habit_id, g.current_user.id_clerk, limit=10)
+    total_registros = len(registros)
+    total_exitos = sum(1 for r in registros if r.estado == 'exito')
+    total_fallos = sum(1 for r in registros if r.estado == 'fallo')
+    tasa_exito = (total_exitos / total_registros * 100) if total_registros > 0 else 0
+    
+    registros_recientes = sorted(registros, key=lambda x: x.fecha, reverse=True)[:10]
     
     result = {
         'id': habit.id,
@@ -766,7 +771,10 @@ def get_habit_stats(habit_id):
             'mejor': rachas['mejor']
         },
         'estadisticas': {
-            'total_registros': total_registros
+            'total_registros': total_registros,
+            'total_exitos': total_exitos,
+            'total_fallos': total_fallos,
+            'tasa_exito': round(tasa_exito, 1)
         },
         'registros_recientes': [{
             'id': entry.id,
@@ -782,7 +790,61 @@ def get_habit_stats(habit_id):
             'nombre': habit.group.nombre
         }
     
-    return jsonify(result)
+    return result
+
+@auth_required
+def get_habit_stats(habit_id=None):
+    """
+    Obtener estadísticas de hábitos.
+    
+    GET /api/v1/habits/stats - Estadísticas consolidadas de todos los hábitos del usuario
+    GET /api/v1/habits/{habit_id}/stats - Estadísticas del hábito específico
+    """
+    
+    # Caso 1: Estadísticas de un hábito específico
+    if habit_id:
+        stats = _build_habit_stats(habit_id, g.current_user.id_clerk)
+        if stats is None:
+            return jsonify({'error': {'code': 'forbidden', 'message': 'Sin acceso al hábito'}}), 403
+        return jsonify(stats)
+    
+    # Caso 2: Estadísticas consolidadas de todos los hábitos
+    habits = db.session.query(Habit).filter(
+        or_(
+            Habit.id_propietario == g.current_user.id_clerk,
+            Habit.id_grupo.in_(
+                db.session.query(GroupMember.id_grupo).filter_by(id_clerk=g.current_user.id_clerk)
+            )
+        )
+    ).filter(Habit.archivado == False).all()
+    
+    habitos_stats = []
+    for habit in habits:
+        stats = _build_habit_stats(habit.id, g.current_user.id_clerk)
+        if stats:
+            habitos_stats.append(stats)
+    
+    # Calcular estadísticas consolidadas
+    total_registros_general = sum(h['estadisticas']['total_registros'] for h in habitos_stats)
+    total_exitos_general = sum(h['estadisticas']['total_exitos'] for h in habitos_stats)
+    total_fallos_general = sum(h['estadisticas']['total_fallos'] for h in habitos_stats)
+    tasa_exito_general = (total_exitos_general / total_registros_general * 100) if total_registros_general > 0 else 0
+    
+    habitos_con_racha = sum(1 for h in habitos_stats if h['rachas']['actual'] > 0)
+    
+    return jsonify({
+        'resumen_general': {
+            'total_habitos': len(habitos_stats),
+            'habitos_activos_con_racha': habitos_con_racha,
+            'estadisticas': {
+                'total_registros': total_registros_general,
+                'total_exitos': total_exitos_general,
+                'total_fallos': total_fallos_general,
+                'tasa_exito_promedio': round(tasa_exito_general, 1)
+            }
+        },
+        'habitos': habitos_stats
+    })
 
 @auth_required
 def get_streaks_overview():
