@@ -2,6 +2,7 @@ import json
 import logging
 from datetime import datetime, date
 from uuid import uuid4
+import pytz
 import google.generativeai as genai
 from sqlalchemy import func
 
@@ -41,7 +42,10 @@ class IACoachService:
             dict: Con 'id' y 'estado_procesamiento'
         """
         try:
-            hoy = date.today()
+            # Obtener la fecha actual del usuario en su zona horaria
+            from services.timezone_service import TimezoneService
+            tz_service = TimezoneService()
+            hoy = tz_service.get_user_local_date(id_clerk)
 
             # Verificar si existe análisis para hoy
             analisis_existente = IAAnalisisDiario.query.filter_by(
@@ -245,7 +249,7 @@ class IACoachService:
                 'estadisticas_semana': estadisticas_semana,
                 'rachas_actuales': rachas_actuales,
                 'habitos_totales': len(habitos),
-                'fecha': datetime.utcnow().isoformat()
+                'fecha': datetime.now(pytz.UTC).isoformat()
             }
 
             return datos
@@ -294,7 +298,7 @@ class IACoachService:
             # Guardar consejos individuales
             for consejo_data in consejos:
                 id_consejo = str(uuid4())
-                ahora = datetime.utcnow()
+                ahora = datetime.now(pytz.UTC)
 
                 consejo = IAConsejo(
                     id=id_consejo,
@@ -447,7 +451,7 @@ Recuerda: Devuelve SOLO el JSON sin comentarios, sin comillas de apertura extra,
 
     def obtener_consejos_del_dia(self, id_clerk):
         """
-        Obtiene los consejos del día actual para el usuario.
+        Obtiene los consejos del día actual para el usuario, considerando su zona horaria.
         
         Args:
             id_clerk: ID del usuario en Clerk
@@ -456,12 +460,31 @@ Recuerda: Devuelve SOLO el JSON sin comentarios, sin comillas de apertura extra,
             list: Lista de consejos
         """
         try:
-            hoy = date.today()
+            # Obtener usuario y su zona horaria
+            usuario = User.query.filter_by(id_clerk=id_clerk).first()
+            if not usuario:
+                raise ValueError(f"Usuario {id_clerk} no encontrado")
+            
+            # Obtener la fecha actual del usuario en su zona horaria
+            from services.timezone_service import TimezoneService
+            tz_service = TimezoneService()
+            fecha_usuario = tz_service.get_user_local_date(id_clerk)
+            
+            self.logger.info(f"Obteniendo consejos para {id_clerk} del día {fecha_usuario} (zona: {usuario.zona_horaria})")
 
-            consejos = IAConsejo.query.filter(
-                IAConsejo.id_clerk == id_clerk,
-                func.date(IAConsejo.generado_en) == hoy
+            # Obtener todos los consejos del usuario (sin filtrar por fecha aquí)
+            consejos_db = IAConsejo.query.filter_by(
+                id_clerk=id_clerk
             ).order_by(IAConsejo.generado_en.desc()).all()
+            
+            # Filtrar por fecha convertida a zona horaria del usuario
+            consejos_filtrados = []
+            for c in consejos_db:
+                fecha_consejo_local = tz_service.to_user_timezone(c.generado_en, id_clerk)
+                fecha_consejo = fecha_consejo_local.date() if hasattr(fecha_consejo_local, 'date') else fecha_consejo_local
+                
+                if fecha_consejo == fecha_usuario:
+                    consejos_filtrados.append(c)
 
             return [
                 {
@@ -472,7 +495,7 @@ Recuerda: Devuelve SOLO el JSON sin comentarios, sin comillas de apertura extra,
                     'leido': c.leido,
                     'generado_en': c.generado_en.isoformat()
                 }
-                for c in consejos
+                for c in consejos_filtrados
             ]
 
         except Exception as e:
@@ -500,7 +523,7 @@ Recuerda: Devuelve SOLO el JSON sin comentarios, sin comillas de apertura extra,
                 raise ValueError("Consejo no encontrado o sin permiso")
 
             consejo.leido = True
-            consejo.fecha_lectura = datetime.utcnow()
+            consejo.fecha_lectura = datetime.now(pytz.UTC)
             db.session.commit()
 
             self.logger.info(f"Consejo {id_consejo} marcado como leído")

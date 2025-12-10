@@ -3,7 +3,7 @@ from datetime import datetime
 
 import pytz
 from models import db
-from core.datetime_util import DateTimeUtil
+from core.datetime_util import UTCDateTime
 
 class Habit(db.Model):
     __tablename__ = 'habitos'
@@ -13,7 +13,7 @@ class Habit(db.Model):
     titulo = db.Column(db.String(255), nullable=False)
     tipo = db.Column(db.Enum('hacer', 'dejar'), nullable=False)
     archivado = db.Column(db.Boolean, default=False)
-    fecha_creacion = db.Column(db.DateTime, default=lambda: DateTimeUtil.get_current_utc())
+    fecha_creacion = db.Column(UTCDateTime, default=lambda: datetime.now(pytz.UTC))
     
     user = db.relationship('User', backref='habits')
     group = db.relationship('Group', backref='habits')
@@ -24,11 +24,11 @@ class HabitEntry(db.Model):
     id_habito = db.Column(db.String(36), db.ForeignKey('habitos.id'), nullable=False)
     id_clerk = db.Column(db.String(191), db.ForeignKey('usuarios.id_clerk'), nullable=False)
     fecha = db.Column(db.Date, nullable=False)
-    fecha_hora_local = db.Column(db.DateTime, nullable=False)
+    fecha_hora_local = db.Column(UTCDateTime, nullable=False)
     estado = db.Column(db.Enum('exito', 'fallo'), nullable=False)
     comentario = db.Column(db.Text)
-    fecha_creacion = db.Column(db.DateTime, default=lambda: datetime.now(pytz.UTC))
-    fecha_actualizacion = db.Column(db.DateTime, default=lambda: datetime.now(pytz.UTC), onupdate=lambda: datetime.now(pytz.UTC))
+    fecha_creacion = db.Column(UTCDateTime, default=lambda: datetime.now(pytz.UTC))
+    fecha_actualizacion = db.Column(UTCDateTime, default=lambda: datetime.now(pytz.UTC), onupdate=lambda: datetime.now(pytz.UTC))
     
     habit = db.relationship('Habit', backref='entries')
     user = db.relationship('User', backref='habit_entries')
@@ -43,7 +43,7 @@ class HabitStreak(db.Model):
     mejor_racha = db.Column(db.Integer, default=0)
     ultima_fecha = db.Column(db.Date)
     ultima_revision_local = db.Column(db.Date)
-    fecha_actualizacion = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    fecha_actualizacion = db.Column(UTCDateTime, default=lambda: datetime.now(pytz.UTC), onupdate=lambda: datetime.now(pytz.UTC))
     
     habit = db.relationship('Habit', backref='streaks')
     user = db.relationship('User', backref='habit_streaks')

@@ -60,12 +60,17 @@ class IACoachController:
                     except Exception as e:
                         logger.warning(f"Error marcando consejo como leído: {str(e)}")
 
+            # Obtener fecha actual del usuario en su zona horaria
+            from services.timezone_service import TimezoneService
+            tz_service = TimezoneService()
+            fecha_usuario = tz_service.get_user_local_date(id_clerk)
+
             return jsonify({
                 'success': True,
                 'data': {
                     'consejos': consejos,
                     'total_consejos': len(consejos),
-                    'fecha': str(__import__('datetime').date.today())
+                    'fecha': str(fecha_usuario)
                 }
             }), 200
 
@@ -197,12 +202,17 @@ class IACoachController:
                     except Exception as e:
                         logger.warning(f"Error marcando consejo como leído: {str(e)}")
 
+            # Obtener fecha actual del usuario en su zona horaria
+            from services.timezone_service import TimezoneService
+            tz_service = TimezoneService()
+            fecha_usuario = tz_service.get_user_local_date(id_clerk)
+
             return jsonify({
                 'success': True,
                 'data': {
                     'consejos': consejos,
                     'total_consejos': len(consejos),
-                    'fecha': str(date.today()),
+                    'fecha': str(fecha_usuario),
                     'actualizado': True
                 }
             }), 200

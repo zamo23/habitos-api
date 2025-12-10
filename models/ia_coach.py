@@ -1,6 +1,12 @@
 from datetime import datetime
 from models import db
 import uuid
+import pytz
+from core.datetime_util import UTCDateTime
+
+def utc_now():
+    """Retorna la fecha/hora actual en UTC con zona horaria"""
+    return datetime.now(pytz.UTC)
 
 class IAAnalisisDiario(db.Model):
     """Modelo para almacenar análisis diarios de datos del usuario enviados a IA"""
@@ -18,7 +24,7 @@ class IAAnalisisDiario(db.Model):
         index=True
     )
     error_mensaje = db.Column(db.Text, nullable=True)
-    fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    fecha_creacion = db.Column(UTCDateTime, default=utc_now, nullable=False)
 
     # Relaciones
     usuario = db.relationship('User', backref='ia_analisis_diarios')
@@ -47,9 +53,9 @@ class IAConsejo(db.Model):
     titulo = db.Column(db.String(200), nullable=False)
     contenido = db.Column(db.Text, nullable=False)
     leido = db.Column(db.Boolean, default=False)
-    fecha_lectura = db.Column(db.DateTime, nullable=True)
-    generado_en = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
-    fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    fecha_lectura = db.Column(UTCDateTime, nullable=True)
+    generado_en = db.Column(UTCDateTime, default=utc_now, nullable=False, index=True)
+    fecha_creacion = db.Column(UTCDateTime, default=utc_now, nullable=False)
 
     # Relaciones
     usuario = db.relationship('User', backref='ia_consejos', foreign_keys=[id_clerk])
@@ -67,7 +73,7 @@ class IAConsejoInteraccion(db.Model):
     id_consejo = db.Column(db.String(36), db.ForeignKey('ia_consejos.id', ondelete='CASCADE'), nullable=False, index=True)
     id_clerk = db.Column(db.String(191), db.ForeignKey('usuarios.id_clerk', ondelete='CASCADE'), nullable=False, index=True)
     accion = db.Column(db.Enum('visto', 'archivado', 'seguido', 'ignorado'), nullable=False)
-    fecha_accion = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    fecha_accion = db.Column(UTCDateTime, default=utc_now, nullable=False)
 
     # Relaciones
     usuario = db.relationship('User', backref='ia_interacciones', foreign_keys=[id_clerk])
