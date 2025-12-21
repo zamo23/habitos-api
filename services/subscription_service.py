@@ -4,14 +4,14 @@ def get_user_subscription(user_id):
     """Obtener la suscripción actual de un usuario"""
     return Subscription.query.filter_by(id_clerk=user_id, es_actual=True).first()
 
-def check_habit_limit(user_id, id_grupo=None):
+def check_habit_limit(user_id, id_grupo=None, additional_habits=1):
     """Verificar si el usuario puede crear más hábitos según su plan"""
     subscription = get_user_subscription(user_id)
     
     # Si no hay suscripción, aplicar reglas básicas
     if not subscription or not subscription.plan:
         current_habits = Habit.query.filter_by(id_propietario=user_id, archivado=False).count()
-        if current_habits >= 1:  # Free tier allows 1 habit
+        if current_habits + additional_habits > 1:  # Free tier allows 1 habit
             return {'allowed': False, 'error': {'code': 'limit_exceeded', 'message': 'Límite de hábitos alcanzado para usuario sin plan'}}
         
         if id_grupo:
@@ -22,7 +22,7 @@ def check_habit_limit(user_id, id_grupo=None):
     # Verificar límite de hábitos del plan
     if subscription.plan.max_habitos:
         current_habits = Habit.query.filter_by(id_propietario=user_id, archivado=False).count()
-        if current_habits >= subscription.plan.max_habitos:
+        if current_habits + additional_habits > subscription.plan.max_habitos:
             return {'allowed': False, 'error': {'code': 'limit_exceeded', 'message': 'Límite de hábitos alcanzado'}}
     
     # Verificar permisos para hábitos grupales

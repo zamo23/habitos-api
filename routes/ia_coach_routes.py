@@ -46,4 +46,10 @@ def crear_rutas_ia_coach(app):
         """Fuerza la regeneración del consejo si hay cambios significativos"""
         return controlador.actualizar_consejo_diario()
 
+    @blueprint.route('/sugerencias-habitos', methods=['POST', 'OPTIONS'])
+    @auth_required
+    def sugerencias_habitos():
+        """Genera sugerencias de hábitos basadas en los hábitos actuales del usuario"""
+        return controlador.generar_sugerencias_habitos()
+
     return blueprint

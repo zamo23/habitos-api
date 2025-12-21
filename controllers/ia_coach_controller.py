@@ -234,6 +234,73 @@ class IACoachController:
             }), 500
 
 
+    def generar_sugerencias_habitos(self):
+        """
+        POST /api/ia-coach/sugerencias-habitos
+        
+        Genera sugerencias de hábitos basadas en un input del usuario y sus hábitos actuales.
+        
+        Body (JSON):
+            {
+                "input_usuario": "bajar 10 kg"
+            }
+        
+        Returns:
+            JSON con sugerencias de hábitos
+        """
+        try:
+            # Obtener ID del usuario desde el contexto
+            id_clerk = g.current_user.id_clerk
+
+            if not id_clerk:
+                return jsonify({
+                    'success': False,
+                    'message': 'No se pudo obtener el ID del usuario'
+                }), 401
+
+            # Obtener datos del request
+            data = request.get_json()
+            if not data:
+                return jsonify({
+                    'success': False,
+                    'message': 'Se requiere body JSON'
+                }), 400
+
+            input_usuario = data.get('input_usuario', '').strip()
+
+            if not input_usuario:
+                return jsonify({
+                    'success': False,
+                    'message': 'input_usuario es requerido'
+                }), 400
+
+            logger.info(f"Generando sugerencias de hábitos para {id_clerk} con input: {input_usuario}")
+
+            # Generar sugerencias con IA
+            sugerencias = self.service.generar_sugerencias_habitos(id_clerk, input_usuario)
+
+            return jsonify({
+                'success': True,
+                'data': sugerencias
+            }), 200
+
+        except ValueError as e:
+            logger.error(f"Error de validación: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': str(e)
+            }), 400
+
+        except Exception as e:
+            logger.error(f"Error en generar_sugerencias_habitos: {str(e)}")
+            error_detail = str(e) if current_app.config.get('DEBUG', False) else None
+            return jsonify({
+                'success': False,
+                'message': 'Error al generar sugerencias de hábitos',
+                'error': error_detail
+            }), 500
+
+
 def crear_controlador(ia_coach_service):
     """
     Factory function para crear una instancia del controlador.

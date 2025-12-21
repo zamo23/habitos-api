@@ -891,6 +891,10 @@ def get_weekly_progress():
         
         pendientes = total_habitos - (exitos + fallos)
         
+        if fecha_actual < hoy_local:
+            fallos += pendientes
+            pendientes = 0
+        
         semana.append({
             'fecha': fecha_actual.isoformat(),
             'dia_semana': ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'][i],
@@ -908,3 +912,116 @@ def get_weekly_progress():
             'dias': semana
         }
     })
+
+
+@auth_required
+def create_habits_bulk():
+    """
+    Crear múltiples hábitos de manera masiva
+    
+    Body esperado:
+    {
+        "hacer": ["Hábito 1", "Hábito 2"],
+        "dejar": ["Hábito malo 1", "Hábito malo 2"]
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'Se requiere body JSON'
+            }), 400
+
+        habitos_hacer = data.get('hacer', [])
+        habitos_dejar = data.get('dejar', [])
+        
+        # Validar que al menos uno de los arrays tenga contenido
+        if not habitos_hacer and not habitos_dejar:
+            return jsonify({
+                'success': False,
+                'message': 'Debe proporcionar al menos un hábito en "hacer" o "dejar"'
+            }), 400
+        
+        # Validar que sean listas
+        if not isinstance(habitos_hacer, list) or not isinstance(habitos_dejar, list):
+            return jsonify({
+                'success': False,
+                'message': '"hacer" y "dejar" deben ser arrays'
+            }), 400
+        
+        # Validar contenido de los arrays
+        todos_habitos = habitos_hacer + habitos_dejar
+        for habito in todos_habitos:
+            if not isinstance(habito, str) or not habito.strip():
+                return jsonify({
+                    'success': False,
+                    'message': 'Todos los hábitos deben ser strings no vacíos'
+                }), 400
+        
+        # Verificar límite de hábitos
+        total_habitos_nuevos = len(habitos_hacer) + len(habitos_dejar)
+        result = check_habit_limit(g.current_user.id_clerk, None, total_habitos_nuevos)
+        if result.get('error'):
+            return jsonify({
+                'success': False,
+                'message': result['error']['message']
+            }), 403
+        
+        # Crear hábitos
+        habitos_creados = []
+        
+        # Crear hábitos "hacer"
+        for titulo in habitos_hacer:
+            habit = Habit(
+                titulo=titulo.strip(),
+                tipo='hacer',
+                id_propietario=g.current_user.id_clerk
+            )
+            db.session.add(habit)
+            habitos_creados.append({
+                'id': habit.id,
+                'titulo': habit.titulo,
+                'tipo': habit.tipo
+            })
+        
+        # Crear hábitos "dejar"
+        for titulo in habitos_dejar:
+            habit = Habit(
+                titulo=titulo.strip(),
+                tipo='dejar',
+                id_propietario=g.current_user.id_clerk
+            )
+            db.session.add(habit)
+            habitos_creados.append({
+                'id': habit.id,
+                'titulo': habit.titulo,
+                'tipo': habit.tipo
+            })
+        
+        # Commit de todos los hábitos
+        db.session.commit()
+        
+        current_app.logger.info(f"Usuario {g.current_user.id_clerk} creó {len(habitos_creados)} hábitos masivamente")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Se crearon {len(habitos_creados)} hábitos exitosamente',
+            'data': {
+                'habitos_creados': habitos_creados,
+                'total': len(habitos_creados),
+                'hacer': len(habitos_hacer),
+                'dejar': len(habitos_dejar)
+            }
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error creando hábitos masivos: {str(e)}")
+        error_detail = str(e) if current_app.config.get('DEBUG', False) else None
+        return jsonify({
+            'success': False,
+            'message': 'Error al crear los hábitos',
+            'error': error_detail
+        }), 500

@@ -580,3 +580,181 @@ Recuerda: Devuelve SOLO el JSON sin comentarios, sin comillas de apertura extra,
             self.logger.error(f"Error en registrar_interaccion: {str(e)}")
             db.session.rollback()
             raise
+
+    def generar_sugerencias_habitos(self, id_clerk, input_usuario):
+        """
+        Genera sugerencias de hábitos usando Google Gemini API.
+        
+        Args:
+            id_clerk: ID del usuario en Clerk
+            input_usuario: Input proporcionado por el usuario (meta o descripción)
+            
+        Returns:
+            dict: Sugerencias de hábitos
+        """
+        try:
+            # Obtener información del usuario
+            usuario = User.query.filter_by(id_clerk=id_clerk).first()
+            if not usuario:
+                raise ValueError("Usuario no encontrado")
+
+            # Obtener hábitos actuales del usuario
+            habitos_hacer, habitos_dejar = self._obtener_habitos_usuario(id_clerk)
+
+            idioma = usuario.idioma or 'es'
+            idioma_completo = "ESPAÑOL" if idioma == 'es' else "INGLÉS"
+
+            # Construir prompt
+            prompt = self._construir_prompt_sugerencias(input_usuario, habitos_hacer, habitos_dejar, idioma_completo)
+
+            # Llamar a Gemini
+            self.logger.info(f"Llamando a Gemini para generar sugerencias de hábitos...")
+            response = self.model.generate_content(prompt)
+            texto_respuesta = response.text
+
+            # Parsear respuesta
+            sugerencias = self._parsear_respuesta_sugerencias(texto_respuesta)
+
+            self.logger.info(f"Sugerencias generadas exitosamente para {id_clerk}")
+
+            return sugerencias
+
+        except Exception as e:
+            self.logger.error(f"Error en generar_sugerencias_habitos: {str(e)}")
+            raise
+
+    def _obtener_habitos_usuario(self, id_clerk):
+        """
+        Obtiene los hábitos activos del usuario separados por tipo.
+        
+        Args:
+            id_clerk: ID del usuario en Clerk
+            
+        Returns:
+            tuple: (habitos_hacer, habitos_dejar) - listas de strings
+        """
+        try:
+            # Consultar hábitos activos (no archivados) del usuario
+            habitos = Habit.query.filter_by(
+                id_propietario=id_clerk,
+                archivado=False
+            ).all()
+
+            habitos_hacer = []
+            habitos_dejar = []
+
+            for habito in habitos:
+                if habito.tipo == 'hacer':
+                    habitos_hacer.append(habito.titulo)
+                elif habito.tipo == 'dejar':
+                    habitos_dejar.append(habito.titulo)
+
+            self.logger.info(f"Hábitos encontrados para {id_clerk}: {len(habitos_hacer)} hacer, {len(habitos_dejar)} dejar")
+            
+            return habitos_hacer, habitos_dejar
+
+        except Exception as e:
+            self.logger.error(f"Error obteniendo hábitos del usuario {id_clerk}: {str(e)}")
+            return [], []
+
+    def _construir_prompt_sugerencias(self, input_usuario, habitos_hacer, habitos_dejar, idioma_completo):
+        """
+        Construye el prompt para sugerencias de hábitos.
+        
+        Args:
+            input_usuario: Input proporcionado por el usuario
+            habitos_hacer: Lista de hábitos a hacer
+            habitos_dejar: Lista de hábitos a dejar
+            idioma_completo: Idioma para la respuesta
+            
+        Returns:
+            str: Prompt formateado
+        """
+        habitos_hacer_str = "\n".join([f"- {h}" for h in habitos_hacer]) if habitos_hacer else "Ninguno"
+        habitos_dejar_str = "\n".join([f"- {h}" for h in habitos_dejar]) if habitos_dejar else "Ninguno"
+
+        prompt = f"""Eres un asistente para una app de hábitos.
+
+El usuario proporcionará una meta general y sus hábitos actuales divididos en "Hacer" y "Dejar de hacer".
+Tu tarea es transformar la meta en hábitos diarios simples, marcables y sostenibles, considerando los hábitos que ya tiene.
+
+Reglas obligatorias:
+- No hagas preguntas adicionales.
+- Usa la meta solo para inferir el área de vida.
+- Diseña hábitos pequeños que funcionen incluso en días malos.
+- Prioriza acciones diarias sobre resultados.
+- Cada hábito debe poder completarse en pocos minutos.
+- Los hábitos deben encajar en un sistema de registro diario (hecho / no hecho).
+- Considera los hábitos actuales del usuario para evitar duplicados y crear complementos.
+
+Estrategia:
+- Traduce la meta en beneficios diarios (energía, enfoque, bienestar).
+- Asume dificultades comunes sin mencionarlas.
+- Comienza siempre con el mínimo esfuerzo posible.
+- Crea hábitos que puedan mantenerse incluso después de lograr la meta.
+- Complementa los hábitos existentes sin contradecirlos.
+
+Meta del usuario: "{input_usuario}"
+
+Hábitos actuales del usuario:
+Hacer:
+{habitos_hacer_str}
+
+Dejar de hacer:
+{habitos_dejar_str}
+
+Formato de salida:
+- 3 a 5 hábitos recomendados.
+- Separados en "Hacer" y "Dejar" si aplica.
+- Usa lenguaje simple, práctico y no motivacional.
+- No menciones metas, identidad ni conceptos teóricos.
+
+Responde OBLIGATORIAMENTE en {idioma_completo}.
+
+FORMATO DE RESPUESTA (IMPORTANTE - Devuelve SOLO un JSON válido):
+{{
+  "hacer": ["hábito 1", "hábito 2"],
+  "dejar": ["hábito malo 1", "hábito malo 2"]
+}}
+
+Recuerda: Devuelve SOLO el JSON sin comentarios, sin comillas de apertura extra, sin código markdown. El JSON debe ser válido y parseable."""
+
+        return prompt
+
+    def _parsear_respuesta_sugerencias(self, texto):
+        """
+        Parsea la respuesta de Gemini para sugerencias de hábitos.
+        
+        Args:
+            texto: Texto de respuesta de Gemini
+            
+        Returns:
+            dict: Sugerencias parseadas
+        """
+        try:
+            # Buscar JSON en la respuesta
+            import re
+            json_match = re.search(r'\{[\s\S]*\}', texto)
+
+            if not json_match:
+                self.logger.warning("No se encontró JSON en la respuesta de sugerencias")
+                return {"hacer": [], "dejar": []}
+
+            json_str = json_match.group(0)
+            datos = json.loads(json_str)
+
+            # Validar estructura
+            hacer = datos.get('hacer', [])
+            dejar = datos.get('dejar', [])
+
+            if not isinstance(hacer, list) or not isinstance(dejar, list):
+                return {"hacer": [], "dejar": []}
+
+            return {
+                "hacer": [str(h) for h in hacer if h],
+                "dejar": [str(d) for d in dejar if d]
+            }
+
+        except Exception as e:
+            self.logger.error(f"Error al parsear respuesta de sugerencias: {str(e)}")
+            return {"hacer": [], "dejar": []}
