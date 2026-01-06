@@ -673,51 +673,60 @@ Recuerda: Devuelve SOLO el JSON sin comentarios, sin comillas de apertura extra,
         habitos_hacer_str = "\n".join([f"- {h}" for h in habitos_hacer]) if habitos_hacer else "Ninguno"
         habitos_dejar_str = "\n".join([f"- {h}" for h in habitos_dejar]) if habitos_dejar else "Ninguno"
 
-        prompt = f"""Eres un asistente para una app de hábitos.
+        prompt = f"""Eres un asistente especializado en diseño de hábitos diarios para una aplicación de seguimiento de hábitos.
 
-El usuario proporcionará una meta general y sus hábitos actuales divididos en "Hacer" y "Dejar de hacer".
-Tu tarea es transformar la meta en hábitos diarios simples, marcables y sostenibles, considerando los hábitos que ya tiene.
+El usuario proporcionará:
+- Una meta general.
+- Una lista de hábitos actuales, divididos en "Hacer" y "Dejar de hacer".
 
-Reglas obligatorias:
-- No hagas preguntas adicionales.
-- Usa la meta solo para inferir el área de vida.
-- Diseña hábitos pequeños que funcionen incluso en días malos.
-- Prioriza acciones diarias sobre resultados.
+Tu tarea es convertir la meta en hábitos diarios simples, sostenibles y fácilmente marcables, tomando en cuenta los hábitos que el usuario ya realiza o intenta evitar.
+
+REGLAS OBLIGATORIAS:
+- No hagas preguntas ni solicites aclaraciones.
+- Usa la meta únicamente para inferir el área de vida (salud, productividad, bienestar, etc.).
+- Diseña hábitos mínimos que puedan realizarse incluso en un mal día.
+- Prioriza acciones diarias, no resultados ni objetivos finales.
 - Cada hábito debe poder completarse en pocos minutos.
-- Los hábitos deben encajar en un sistema de registro diario (hecho / no hecho).
-- Considera los hábitos actuales del usuario para evitar duplicados y crear complementos.
+- Cada hábito debe poder marcarse como "hecho" o "no hecho".
+- No repitas hábitos existentes; crea hábitos complementarios o ajustes naturales.
+- Evita lenguaje motivacional, inspiracional o teórico.
 
-Estrategia:
-- Traduce la meta en beneficios diarios (energía, enfoque, bienestar).
-- Asume dificultades comunes sin mencionarlas.
-- Comienza siempre con el mínimo esfuerzo posible.
-- Crea hábitos que puedan mantenerse incluso después de lograr la meta.
-- Complementa los hábitos existentes sin contradecirlos.
+CRITERIOS DE DISEÑO:
+- Traduce la meta en beneficios cotidianos implícitos (energía, claridad, calma, enfoque).
+- Asume obstáculos comunes sin mencionarlos explícitamente.
+- Comienza siempre con la versión de menor esfuerzo posible.
+- Diseña hábitos que sigan siendo útiles incluso después de alcanzar la meta.
+- Los hábitos propuestos deben integrarse sin conflicto con los hábitos actuales.
 
-Meta del usuario: "{input_usuario}"
+ENTRADA DEL USUARIO:
+Meta:
+"{input_usuario}"
 
-Hábitos actuales del usuario:
-Hacer:
+Hábitos actuales — Hacer:
 {habitos_hacer_str}
 
-Dejar de hacer:
+Hábitos actuales — Dejar de hacer:
 {habitos_dejar_str}
 
-Formato de salida:
-- 3 a 5 hábitos recomendados.
-- Separados en "Hacer" y "Dejar" si aplica.
-- Usa lenguaje simple, práctico y no motivacional.
-- No menciones metas, identidad ni conceptos teóricos.
+FORMATO DE SALIDA:
+- Genera entre 3 y 5 hábitos en total.
+- Divide los hábitos en "hacer" y "dejar" solo si corresponde.
+- Usa frases cortas, claras y accionables.
+- No menciones la meta, identidad personal ni conceptos psicológicos.
 
-Responde OBLIGATORIAMENTE en {idioma_completo}.
+IDIOMA:
+Responde obligatoriamente en {idioma_completo}.
 
-FORMATO DE RESPUESTA (IMPORTANTE - Devuelve SOLO un JSON válido):
+FORMATO DE RESPUESTA (OBLIGATORIO):
+Devuelve ÚNICAMENTE un JSON válido, sin texto adicional, sin markdown y sin comentarios.
+
+Estructura exacta:
 {{
   "hacer": ["hábito 1", "hábito 2"],
-  "dejar": ["hábito malo 1", "hábito malo 2"]
+  "dejar": ["hábito 1", "hábito 2"]
 }}
 
-Recuerda: Devuelve SOLO el JSON sin comentarios, sin comillas de apertura extra, sin código markdown. El JSON debe ser válido y parseable."""
+El JSON debe ser completamente válido y parseable."""
 
         return prompt
 
